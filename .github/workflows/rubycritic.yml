@@ -25,7 +25,7 @@ jobs:
           echo "name=$SAFE_BRANCH" >> $GITHUB_OUTPUT
 
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@v4
         if: github.event_name == 'push'
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
