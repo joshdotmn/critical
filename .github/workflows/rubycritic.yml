@@ -1,15 +1,22 @@
 name: RubyCritic
-on: [push, pull_request]
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
 
 jobs:
   rubycritic:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      - uses: ruby/setup-ruby@v1
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
 
@@ -19,16 +26,76 @@ jobs:
       - name: Sanitize branch name
         id: branch
         run: |
-          # Convert branch name to valid path (replace / with -)
           BRANCH_NAME="${GITHUB_REF#refs/heads/}"
           SAFE_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9_-]/-/g')
           echo "name=$SAFE_BRANCH" >> $GITHUB_OUTPUT
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+      - name: Organize files by branch
+        run: |
+          mkdir -p public/${{ steps.branch.outputs.name }}
+          cp -r tmp/rubycritic/* public/${{ steps.branch.outputs.name }}/
+
+      - name: Create index page
+        run: |
+          cat > public/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>RubyCritic Reports</title>
+            <style>
+              body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+              h1 { color: #333; }
+              ul { list-style: none; padding: 0; }
+              li { margin: 10px 0; }
+              a { color: #0066cc; text-decoration: none; font-size: 18px; }
+              a:hover { text-decoration: underline; }
+            </style>
+          </head>
+          <body>
+            <h1>RubyCritic Reports by Branch</h1>
+            <ul id="branches"></ul>
+            <script>
+              // List all branch directories
+              fetch('branches.json')
+                .then(r => r.json())
+                .catch(() => [])
+                .then(branches => {
+                  const list = document.getElementById('branches');
+                  if (branches.length === 0) {
+                    // Fallback if branches.json doesn't exist
+                    list.innerHTML = '<li>No reports available yet. Check back after first deployment.</li>';
+                  } else {
+                    branches.forEach(b => {
+                      const li = document.createElement('li');
+                      li.innerHTML = `<a href="${b}/overview.html">${b}</a>`;
+                      list.appendChild(li);
+                    });
+                  }
+                });
+            </script>
+          </body>
+          </html>
+          EOF
+
+      - name: List branches in JSON
+        run: |
+          echo "[" > public/branches.json
+          for dir in public/*/; do
+            if [ -d "$dir" ]; then
+              branch=$(basename "$dir")
+              echo "  \"$branch\"," >> public/branches.json
+            fi
+          done
+          # Remove trailing comma and close array
+          sed -i '$ s/,$//' public/branches.json
+          echo "]" >> public/branches.json
+
+      - name: Publish to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
         if: github.event_name == 'push'
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./tmp/rubycritic
-          destination_dir: ${{ steps.branch.outputs.name }}
-          keep_files: true  # Important: keeps other branch reports
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: critical-rubycritic
+          directory: public
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
