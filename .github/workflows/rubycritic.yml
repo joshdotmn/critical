@@ -28,56 +28,39 @@ jobs:
         id: branch
         run: |
           if [ "${{ github.event_name }}" == "pull_request" ]; then
-            # For PRs, use pr-NUMBER format
             BRANCH_NAME="pr-${{ github.event.pull_request.number }}"
           else
-            # For pushes to main
             BRANCH_NAME="${GITHUB_REF#refs/heads/}"
           fi
           SAFE_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9_-]/-/g')
           echo "name=$SAFE_BRANCH" >> $GITHUB_OUTPUT
 
-      - name: Download previous deployment
-        run: |
-          mkdir -p public
-          
-          # Download branches.json to see what exists
-          echo "Fetching existing branches..."
-          curl -f https://critical-rubycritic.pages.dev/branches.json -o public/branches.json 2>/dev/null || echo "[]" > public/branches.json
-          
-          echo "=== Current branches.json ==="
-          cat public/branches.json
-          echo "==========================="
-          
-          # Parse branches and download each one using wget
-          if [ -f public/branches.json ]; then
-            # Read each branch name
-            branches=$(cat public/branches.json | grep -o '"[^"]*"' | tr -d '"' || echo "")
-          
-            for branch in $branches; do
-              echo "Downloading branch: $branch"
-          
-              # Use wget to mirror the branch directory
-              wget --recursive \
-                   --no-parent \
-                   --no-host-directories \
-                   --directory-prefix=public \
-                   --reject="index.html" \
-                   --level=5 \
-                   --quiet \
-                   "https://critical-rubycritic.pages.dev/$branch/" || echo "Failed to download $branch"
-            done
-          fi
-          
-          echo "=== Contents of public directory ==="
-          ls -laR public/ | head -50
-          echo "==================================="
+      - name: Checkout reports branch
+        uses: actions/checkout@v3
+        with:
+          ref: cloudflare-reports
+          path: reports-branch
         continue-on-error: true
 
-      - name: Organize files by branch
+      - name: Prepare reports directory
         run: |
-          mkdir -p public/${{ steps.branch.outputs.name }}
-          cp -r tmp/rubycritic/* public/${{ steps.branch.outputs.name }}/
+          # If reports branch exists, use it; otherwise start fresh
+          if [ -d "reports-branch" ]; then
+            echo "Using existing reports branch"
+            cp -r reports-branch public
+            rm -rf public/.git
+          else
+            echo "Creating new reports directory"
+            mkdir -p public
+          fi
+          
+          # Add/update this branch's report
+          mkdir -p "public/${{ steps.branch.outputs.name }}"
+          cp -r tmp/rubycritic/* "public/${{ steps.branch.outputs.name }}/"
+          
+          echo "=== Current branches in public ==="
+          ls -la public/
+          echo "================================="
 
       - name: Create index page
         run: |
@@ -145,7 +128,6 @@ jobs:
                   if (branches.length === 0) {
                     list.innerHTML = '<li>No reports available yet.</li>';
                   } else {
-                    // Sort: main first, then PRs
                     branches.sort((a, b) => {
                       if (a === 'main') return -1;
                       if (b === 'main') return 1;
@@ -167,19 +149,13 @@ jobs:
 
       - name: List branches in JSON
         run: |
-          echo "=== Before updating branches.json ==="
-          ls -la public/
-          echo "======================================"
-          
           echo "[" > public/branches.json
           for dir in public/*/; do
             if [ -d "$dir" ] && [ -f "$dir/overview.html" ]; then
               branch=$(basename "$dir")
-              echo "Found branch with overview.html: $branch"
               echo "  \"$branch\"," >> public/branches.json
             fi
           done
-          # Remove trailing comma and close array
           sed -i '$ s/,$//' public/branches.json
           echo "]" >> public/branches.json
           
@@ -187,9 +163,18 @@ jobs:
           cat public/branches.json
           echo "============================"
 
+      - name: Commit to reports branch
+        run: |
+          cd public
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Update RubyCritic report for ${{ steps.branch.outputs.name }}"
+          git push --force https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:cloudflare-reports
+
       - name: Publish to Cloudflare Pages
         uses: cloudflare/pages-action@v1
-        if: github.event_name == 'push' || github.event_name == 'pull_request'
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
