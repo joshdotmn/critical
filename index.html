@@ -69,7 +69,7 @@
 
           branches.forEach(b => {
             const li = document.createElement('li');
-            const type = b === 'main' ? '🌿 Main Branch' : '🔀 Pull Request';
+            const type = b === 'main' ? '🌿 Main Branch' : b.startsWith('pr-') ? '🔀 Pull Request' : '🌱 Branch';
             li.innerHTML = `<a href="${b}/overview.html">${b}</a><span class="branch-type">${type}</span>`;
             list.appendChild(li);
           });
