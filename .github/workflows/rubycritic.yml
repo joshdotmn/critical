@@ -1,7 +1,6 @@
 name: RubyCritic
 
 on:
-  push:
   pull_request:
 
 jobs:
@@ -25,13 +24,11 @@ jobs:
       - name: Sanitize branch name
         id: branch
         run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            BRANCH_NAME="pr-${{ github.event.pull_request.number }}"
-          else
-            BRANCH_NAME="${GITHUB_REF#refs/heads/}"
-          fi
+          # Use the actual branch name from the PR
+          BRANCH_NAME="${{ github.head_ref }}"
           SAFE_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9_-]/-/g')
           echo "name=$SAFE_BRANCH" >> $GITHUB_OUTPUT
+          echo "Using branch name: $SAFE_BRANCH"
 
       - name: Check if reports branch exists
         id: check_branch
@@ -141,16 +138,11 @@ jobs:
                   if (branches.length === 0) {
                     list.innerHTML = '<li>No reports available yet.</li>';
                   } else {
-                    branches.sort((a, b) => {
-                      if (a === 'main') return -1;
-                      if (b === 'main') return 1;
-                      return a.localeCompare(b);
-                    });
+                    branches.sort();
           
                     branches.forEach(b => {
                       const li = document.createElement('li');
-                      const type = b === 'main' ? '🌿 Main Branch' : b.startsWith('pr-') ? '🔀 Pull Request' : '🌱 Branch';
-                      li.innerHTML = `<a href="${b}/overview.html">${b}</a><span class="branch-type">${type}</span>`;
+                      li.innerHTML = `<a href="${b}/overview.html">${b}</a><span class="branch-type">🌱 Branch</span>`;
                       list.appendChild(li);
                     });
                   }
