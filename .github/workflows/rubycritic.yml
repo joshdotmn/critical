@@ -1,7 +1,6 @@
 name: RubyCritic
 
 on:
-  push:
   pull_request:
 
 jobs:
@@ -142,15 +141,19 @@ jobs:
                     list.innerHTML = '<li>No reports available yet.</li>';
                   } else {
                     branches.sort((a, b) => {
-                      if (a === 'main') return -1;
-                      if (b === 'main') return 1;
+                      // Extract PR numbers for proper numeric sorting
+                      const aMatch = a.match(/^pr-(\d+)$/);
+                      const bMatch = b.match(/^pr-(\d+)$/);
+          
+                      if (aMatch && bMatch) {
+                        return parseInt(bMatch[1]) - parseInt(aMatch[1]); // Newest first
+                      }
                       return a.localeCompare(b);
                     });
           
                     branches.forEach(b => {
                       const li = document.createElement('li');
-                      const type = b === 'main' ? '🌿 Main Branch' : b.startsWith('pr-') ? '🔀 Pull Request' : '🌱 Branch';
-                      li.innerHTML = `<a href="${b}/overview.html">${b}</a><span class="branch-type">${type}</span>`;
+                      li.innerHTML = `<a href="${b}/overview.html">${b}</a><span class="branch-type">🔀 Pull Request</span>`;
                       list.appendChild(li);
                     });
                   }
