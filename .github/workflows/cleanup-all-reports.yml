@@ -19,7 +19,7 @@ jobs:
           echo "Cleaning up branch: $SAFE_BRANCH"
 
       - name: Checkout reports branch
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
         with:
           ref: cloudflare-reports
           path: public

@@ -9,7 +9,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -41,7 +41,7 @@ jobs:
 
       - name: Checkout reports branch
         if: steps.check_branch.outputs.exists == 'true'
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
         with:
           ref: cloudflare-reports
           path: public
