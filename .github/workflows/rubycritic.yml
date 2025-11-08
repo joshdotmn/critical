@@ -35,30 +35,41 @@ jobs:
           SAFE_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9_-]/-/g')
           echo "name=$SAFE_BRANCH" >> $GITHUB_OUTPUT
 
+      - name: Check if reports branch exists
+        id: check_branch
+        run: |
+          if git ls-remote --exit-code --heads origin cloudflare-reports; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Checkout reports branch
+        if: steps.check_branch.outputs.exists == 'true'
         uses: actions/checkout@v3
         with:
           ref: cloudflare-reports
           path: public
-        continue-on-error: true
 
-      - name: Initialize reports branch if needed
+      - name: Initialize new reports directory
+        if: steps.check_branch.outputs.exists == 'false'
         run: |
-          if [ ! -d "public/.git" ]; then
-            echo "Creating new reports branch"
-            mkdir -p public
-            cd public
-            git init
-            git checkout -b cloudflare-reports
-          fi
-          
+          mkdir -p public
+          cd public
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b cloudflare-reports
+
+      - name: Configure git for existing branch
+        if: steps.check_branch.outputs.exists == 'true'
+        run: |
           cd public
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Update report
         run: |
-          # Add/update this branch's report
           mkdir -p "public/${{ steps.branch.outputs.name }}"
           cp -r tmp/rubycritic/* "public/${{ steps.branch.outputs.name }}/"
           
@@ -160,7 +171,10 @@ jobs:
               echo "  \"$branch\"," >> public/branches.json
             fi
           done
-          sed -i '$ s/,$//' public/branches.json
+          # Remove trailing comma if file has content beyond the opening bracket
+          if [ $(wc -l < public/branches.json) -gt 1 ]; then
+            sed -i '$ s/,$//' public/branches.json
+          fi
           echo "]" >> public/branches.json
           
           echo "=== Final branches.json ==="
@@ -176,7 +190,12 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "Update RubyCritic report for ${{ steps.branch.outputs.name }}"
-            git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git cloudflare-reports
+          
+            if [ "${{ steps.check_branch.outputs.exists }}" == "true" ]; then
+              git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:cloudflare-reports
+            else
+              git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:cloudflare-reports
+            fi
           fi
 
       - name: Publish to Cloudflare Pages
