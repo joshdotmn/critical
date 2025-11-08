@@ -39,21 +39,39 @@ jobs:
 
       - name: Download previous deployment
         run: |
-          # Try to download the existing site structure
           mkdir -p public
-          cd public
-          # Use curl to fetch the existing index and branches.json
-          curl -f https://critical-rubycritic.pages.dev/branches.json -o branches.json || echo "[]" > branches.json
           
-          # Download each existing branch listed in branches.json
-          if [ -f branches.json ]; then
-            branches=$(cat branches.json | jq -r '.[]' 2>/dev/null || echo "")
+          # Download branches.json to see what exists
+          echo "Fetching existing branches..."
+          curl -f https://critical-rubycritic.pages.dev/branches.json -o public/branches.json 2>/dev/null || echo "[]" > public/branches.json
+          
+          echo "=== Current branches.json ==="
+          cat public/branches.json
+          echo "==========================="
+          
+          # Parse branches and download each one using wget
+          if [ -f public/branches.json ]; then
+            # Read each branch name
+            branches=$(cat public/branches.json | grep -o '"[^"]*"' | tr -d '"' || echo "")
+          
             for branch in $branches; do
-              echo "Downloading existing branch: $branch"
-              wget -r -np -nH -nd -P "$branch" "https://critical-rubycritic.pages.dev/$branch/" 2>/dev/null || true
+              echo "Downloading branch: $branch"
+          
+              # Use wget to mirror the branch directory
+              wget --recursive \
+                   --no-parent \
+                   --no-host-directories \
+                   --directory-prefix=public \
+                   --reject="index.html" \
+                   --level=5 \
+                   --quiet \
+                   "https://critical-rubycritic.pages.dev/$branch/" || echo "Failed to download $branch"
             done
           fi
-          cd ..
+          
+          echo "=== Contents of public directory ==="
+          ls -laR public/ | head -50
+          echo "==================================="
         continue-on-error: true
 
       - name: Organize files by branch
@@ -149,16 +167,25 @@ jobs:
 
       - name: List branches in JSON
         run: |
+          echo "=== Before updating branches.json ==="
+          ls -la public/
+          echo "======================================"
+          
           echo "[" > public/branches.json
           for dir in public/*/; do
             if [ -d "$dir" ] && [ -f "$dir/overview.html" ]; then
               branch=$(basename "$dir")
+              echo "Found branch with overview.html: $branch"
               echo "  \"$branch\"," >> public/branches.json
             fi
           done
           # Remove trailing comma and close array
           sed -i '$ s/,$//' public/branches.json
           echo "]" >> public/branches.json
+          
+          echo "=== Final branches.json ==="
+          cat public/branches.json
+          echo "============================"
 
       - name: Publish to Cloudflare Pages
         uses: cloudflare/pages-action@v1
