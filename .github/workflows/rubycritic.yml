@@ -2,8 +2,6 @@ name: RubyCritic
 
 on:
   push:
-    branches:
-      - main
   pull_request:
 
 jobs:
@@ -151,7 +149,7 @@ jobs:
           
                     branches.forEach(b => {
                       const li = document.createElement('li');
-                      const type = b === 'main' ? '🌿 Main Branch' : '🔀 Pull Request';
+                      const type = b === 'main' ? '🌿 Main Branch' : b.startsWith('pr-') ? '🔀 Pull Request' : '🌱 Branch';
                       li.innerHTML = `<a href="${b}/overview.html">${b}</a><span class="branch-type">${type}</span>`;
                       list.appendChild(li);
                     });
@@ -190,12 +188,7 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "Update RubyCritic report for ${{ steps.branch.outputs.name }}"
-          
-            if [ "${{ steps.check_branch.outputs.exists }}" == "true" ]; then
-              git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:cloudflare-reports
-            else
-              git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:cloudflare-reports
-            fi
+            git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:cloudflare-reports
           fi
 
       - name: Publish to Cloudflare Pages
