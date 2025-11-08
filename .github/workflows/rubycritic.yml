@@ -14,7 +14,7 @@ jobs:
           bundler-cache: true
 
       - name: Run RubyCritic
-        run: bundle exec rubycritic
+        run: bundle exec rubycritic app lib --no-browser
 
       - name: Sanitize branch name
         id: branch
