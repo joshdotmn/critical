@@ -61,16 +61,11 @@
         if (branches.length === 0) {
           list.innerHTML = '<li>No reports available yet.</li>';
         } else {
-          branches.sort((a, b) => {
-            if (a === 'main') return -1;
-            if (b === 'main') return 1;
-            return a.localeCompare(b);
-          });
+          branches.sort();
 
           branches.forEach(b => {
             const li = document.createElement('li');
-            const type = b === 'main' ? '🌿 Main Branch' : b.startsWith('pr-') ? '🔀 Pull Request' : '🌱 Branch';
-            li.innerHTML = `<a href="${b}/overview.html">${b}</a><span class="branch-type">${type}</span>`;
+            li.innerHTML = `<a href="${b}/overview.html">${b}</a><span class="branch-type">🌱 Branch</span>`;
             list.appendChild(li);
           });
         }
